@@ -17,6 +17,9 @@ class PlurallScraper():
         self.password = password
         self.URL = "https://login.plurall.net/"
 
+        self.subjects_names = []
+        self.subjects_elements = []
+
 
     def setup(self):
         #FP = webdriver.FirefoxProfile("./plurallScraper/profiles")
@@ -48,8 +51,6 @@ class PlurallScraper():
         #email_input_field = DRIVER.find_element(By.CSS_SELECTOR, 'input[class="css-11qryxn"]')
         email_input_field = self.DRIVER.find_element(By.CSS_SELECTOR, 'input.css-13hzf48[type="text"][placeholder="Nome de usuário, e-mail ou celular"]')
         email_input_field.send_keys(self.email)
-        value = self.DRIVER.execute_script("return getComputedStyle(arguments[0], null).getPropertyValue('CSS SELECTOR');", email_input_field)
-        print(f"AAAAAAAAA --> {value}")
 
         #Get the password input field
         password_input_field = self.DRIVER.find_element(By.CSS_SELECTOR, 'input.css-11qryxn[type="password"][placeholder="Digite sua senha"]')
@@ -89,29 +90,44 @@ class PlurallScraper():
 
         #subjects = subject_list.find_elements(By.CSS_SELECTOR, 'span[class="adp-subject-name adp-text ng-binding ng-scope"]')
         #DRIVER.execute_script("window.scrollTo(0, 5000);");
+
+
+
+        ##############################################################################################################################
+        #Get all subjects name
         for i in range(3):
+            #Saving the names of each subject so the folders can be created
             scroll_items = subjects_list.find_elements(By.CSS_SELECTOR, 'span[class="adp-subject-name adp-text ng-binding ng-scope"]')
             for scroll_item in scroll_items:
-                #print(scroll_item.text)
                 if (scroll_item.text not in subjects):
                     subjects.append(scroll_item.text)
 
-                #if (scroll_item not in subjects_elements):
-                    #subjects_elements.append(scroll_item)
+            #Saving the subjects elements for later use :)
+            scroll_elements = subjects_list.find_elements(By.CSS_SELECTOR, "div.adp-list-item")
+            for scroll_element in scroll_elements:
+                if scroll_element not in subjects_elements:
+                    subjects_elements.append(scroll_element)
 
-                #print(scroll_item.value_of_css_property("class"))
-                
-                #subjects_elements.append(self.DRIVER.execute_script("return getComputedStyle(arguments[0], null).getPropertyValue('selector');", scroll_item))
                             
-                    
+            #SCROLL DOWN        
             document.send_keys(Keys.PAGE_DOWN)
             time.sleep(2)
             # Try tweaking the sleep number if things don't go as planned
 
         # Remove empty strings from end result
         subjects = [s for s in subjects if s != '']
+
+        #Save those names and elements to an object for later use
+        self.subjects_names = subjects
+        self.subjects_elements = subjects_elements
+
+
+        #Some testing to make sure there is a proper number of elements
+        #print(f"Expected number of subjects -->  {len(subjects)}")
+        #print(f"Actual number of subject elements --> {len(subjects_elements)}")
+
         #print(subjects)
-        print(subjects_elements)
+        #print(subjects_elements)
 
         
         #Prompt the user to check if all the folders got registered
@@ -129,6 +145,13 @@ class PlurallScraper():
         document.send_keys(Keys.PAGE_UP)
         document.send_keys(Keys.PAGE_UP)
         document.send_keys(Keys.PAGE_UP)
+
+    
+    def criar_pastas_conteudos_materias(self):
+        for i in range(10):
+            pass
+
+        print(self.subjects_elements)
 
 
     def abrir_cada_materia(self):
