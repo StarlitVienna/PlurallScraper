@@ -1,7 +1,10 @@
 import re
 import os
 import time
+import shutil
 import pickle
+import pathlib
+import requests
 import unicodedata
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -31,6 +34,7 @@ class PlurallScraper():
         self.current_page_content_names = []
 
         self.file_path = os.path.realpath(__file__)
+        self.folder_path = pathlib.Path(__file__).parent.resolve()
 
 
 
@@ -47,18 +51,52 @@ class PlurallScraper():
 
         #DRIVER = webdriver.Firefox(firefox_profile=FP)
 
+        # Make downloads folder for additional files
+        if not os.path.exists("./downloads"):
+            os.mkdir("./downloads")
+
         options = FirefoxOptions()
         options.log.level = "trace"
+
+        # Make sure firefox won't open the pdf's in preview mode
+        #options.set_preference("plugin.disable_full_page_plugin_for_types", "application/pdf,application/vnd.adobe.xfdf,application/vnd.fdf,application/vnd.adobe.xdp+xml")
+        options.set_preference("browser.download.folderList", 2)
+        options.set_preference("browser.download.dir", "C:\\Users\\stardust\\Downloads\\PlurallScraper-dev-branch\\second\\downloads")
+        options.set_preference("browser.download.useDownloadDir", True)
+        options.set_preference("pdfjs.disabled", True)
+        options.set_preference("browser.helperApps.neverAsk.saveToDisk", "application/pdf")
         #options.add_argument("--window-size=1920x1080")
-        options.add_argument("-devtools")
+        #options.add_argument("-devtools")
         self.DRIVER = webdriver.Firefox(options=options)
 
         #DRIVER.
         self.DRIVER.get(self.URL)
         
         self.DRIVER.implicitly_wait(10)
-        
 
+            
+
+    def zoom_out(self, times):
+        # A WORKING WAY TO ZOOM OUT WITH SELENIUM :D
+        self.DRIVER.set_context("chrome")
+        win = self.DRIVER.find_element(By.CSS_SELECTOR, "html")
+        for i in range(times):
+            win.send_keys(Keys.CONTROL + "-")
+        self.DRIVER.set_context("content")
+    
+    def zoom_in(self, times):
+        # A WORKING WAY TO ZOOM OUT WITH SELENIUM :D
+        self.DRIVER.set_context("chrome")
+        win = self.DRIVER.find_element(By.CSS_SELECTOR, "html")
+        for i in range(times):
+            win.send_keys(Keys.CONTROL + "+")
+        self.DRIVER.set_context("content")
+
+    def zoom_default(self):
+        self.DRIVER.set_context("chrome")
+        win = self.DRIVER.find_element(By.CSS_SELECTOR, "html")
+        win.send_keys(Keys.CONTROL + "0")
+        self.DRIVER.set_context("content")
 
     def login(self):
         try:
@@ -68,14 +106,6 @@ class PlurallScraper():
             print(E)
 
 
-        with self.DRIVER.context(self.DRIVER.CONTEXT_CHROME):
-
-            console = self.DRIVER.find_element(By.ID, "tabbrowser-tabs")
-            console.send_keys(Keys.LEFT_CONTROL + Keys.LEFT_SHIFT + 'k')
-            time.sleep(3)        
-
-            scrpt = 'ifr = document.getElementById("duo_iframe"); cd(ifr); '
-            console.send_keys("dfsdf" + Keys.ENTER)   
         #Get the email input field
         #email_input_field = DRIVER.find_element(By.CSS_SELECTOR, 'input[class="css-11qryxn"]')
         email_input_field = self.DRIVER.find_element(By.CSS_SELECTOR, 'input.css-13hzf48[type="text"][placeholder="Nome de usuário, e-mail ou celular"]')
@@ -120,7 +150,7 @@ class PlurallScraper():
         name = re.sub(r'[^\w\s-]', '', name.lower())
         return re.sub(r'[-\s]+', '-', name).strip('-_')
 
-    def criar_pastas_materias(self):
+    def criar_pastas_materias(self, cut_subjects):
         html_element = self.DRIVER.find_element(By.CSS_SELECTOR, "html")
         subjects_list = self.DRIVER.find_element(By.CSS_SELECTOR, "div.adp-list-container")
         
@@ -160,6 +190,11 @@ class PlurallScraper():
         # Remove empty strings from end result
         subjects = [s for s in subjects if s != '']
 
+        if cut_subjects > 0:
+            #For some reason it does not work properly without the -1
+            for i in range(cut_subjects-1):
+                del(subjects[0])
+
         #SANITIZE subjects name
         #subjects = [s for self.name_normalizer(s) in subjects]
         for i in range(len(subjects)):
@@ -171,7 +206,10 @@ class PlurallScraper():
         self.subjects_num = len(subjects)
         for subject_i in range(len(subjects)):
             #self.subjects_dict[str(subjects[subject_i])] = subjects_elements
-            self.subjects_css_selector.append(f"div.adp-list-item:nth-child({subject_i+2})")
+            if cut_subjects > 0:
+                self.subjects_css_selector.append(f"div.adp-list-item:nth-child({cut_subjects+subject_i+2})")
+            else:
+                self.subjects_css_selector.append(f"div.adp-list-item:nth-child({subject_i+2})")
         
         ##############################################################################################################################
 
@@ -215,7 +253,28 @@ class PlurallScraper():
                 time.sleep(1)
             except Exception as E:
                 print(E)
+                print("No load button")
 
+    def download_mp4(self, URL: str, videoname: str, path):
+        FILE_TO_SAVE_AS = f"{path}\\{videoname}.mp4" # the name you want to save file as
+
+        resp = requests.get(URL) # making requests to server
+
+        with open(FILE_TO_SAVE_AS, "wb") as f: # opening a file handler to create new file 
+            f.write(resp.content)
+
+    def esperar_download(self):
+        seconds = 0
+        timeout = 20
+        dl_wait = True
+        while dl_wait and seconds < timeout:
+            time.sleep(1)
+            dl_wait = False
+            for fname in os.listdir("./downloads/"):
+                if fname.endswith('.crdownload') or fname.endswith('.part'):
+                    dl_wait = True
+            seconds += 1
+        return seconds
 
     def criar_pastas_conteudos_materias(self, max_number_of_pages):
 
@@ -259,7 +318,7 @@ class PlurallScraper():
                     if content_name not in self.current_page_content_names:
                         self.current_page_content_names.append(content_name)
                 
-                self.scroll_e_carregar(html_element=html_element, detect_load_button=False)
+                self.scroll_e_carregar(html_element=html_element, detect_load_button=True)
             
             # Remove any empty strings
             self.current_page_content_names = [name for name in self.current_page_content_names if name != '']
@@ -324,7 +383,11 @@ class PlurallScraper():
                 
                 for i in range(sub_contents_num):
                     self.DRIVER.find_element(By.CSS_SELECTOR, sub_contents_selector[i]).click()
+                    current_subcontent_name = sub_contents_names[i]
+                    time.sleep(2)
+                    self.DRIVER.refresh()
                     time.sleep(5)
+                    print(f"clicked on --> {current_subcontent_name}")
                     
                     """
                     self.DRIVER.find_element(By.CSS_SELECTOR, 'body').send_keys(Keys.CONTROL + '-')
@@ -342,10 +405,89 @@ class PlurallScraper():
                     #self.DRIVER.execute_script(':screenshot --dpr 3 --fullpage')
 
                     #self.DRIVER.set_window_size(15360, 8640)
-                    self.DRIVER.save_full_page_screenshot()
-                    self.DRIVER.execute("FULL_PAGE_SCREENSHOT")
-                    #self.DRIVER.exe
-                    #driver.find_element("body").send_keys(Keys.F12)
+                    print(f"Going to take screenshot")
+                    if not os.path.exists(f"./plurallSubjects/{current_subject_name}/{current_content_name}/{current_subcontent_name}/{self.name_sanitizer(current_content_name)}.png"):
+                        self.zoom_out(4)
+                        time.sleep(1)
+                        self.DRIVER.save_full_page_screenshot(f"./plurallSubjects/{current_subject_name}/{current_content_name}/{current_subcontent_name}/{self.name_sanitizer(current_content_name)}.png")
+                        print(f"TOOK SCREENSHOT OF {self.name_sanitizer(current_subcontent_name)}")
+                        #self.DRIVER.save_screenshot()
+                        self.zoom_default()
+                        time.sleep(1)
+                        #self.DRIVER.execute("FULL_PAGE_SCREENSHOT")
+                        #self.DRIVER.exe
+                        #driver.find_element("body").send_keys(Keys.F12)
+                    else:
+                        print("DID NOT TAKE SCREENSHOT")
+
+                    self.zoom_default()
+
+
+
+
+                    #FOR THIS PART TO WORK, YOU NEED TO EITHER HAVE A REALLY BIG RESOLUTION THAT CAN VIEW ALL THE FILES OR CHANGE THE FRICKING CODE
+                    # REMEMBER TO MAKE IT A TRY
+                    # Get any downloadable files from page
+                    subcontent_files = []
+                    try:
+                        #Switch to the iframe
+                        self.DRIVER.switch_to.frame(self.DRIVER.find_element(By.CSS_SELECTOR, '#activityTemplate'))
+                        #subcontent_files = self.DRIVER.find_elements(By.CSS_SELECTOR, 'div[class="content-file ng-scope"]')
+                        self.zoom_out(6)
+                        subcontent_files = self.DRIVER.find_elements(By.CSS_SELECTOR, 'a[class="text_link ng-binding"]')
+                        true_file_names = []
+                        #print(f"FOI --> {self.DRIVER.find_element(By.CSS_SELECTOR, 'div.person-name').text}")
+                        #print(subcontent_files)
+                        for file in subcontent_files:
+                            # Download each file
+                            #true_file_names.append(file.value_of_css_property("download"))
+                            
+                            # MAKE SURE THE LINK IS A DOWNLOADABLE FILE, OTHERWISE DON'T CLICK IT
+                            if file.get_attribute('download') != '':
+                                if file.get_attribute('download').endswith("mp4"):
+                                    self.download_mp4(URL=file.get_attribute('href'), videoname=self.name_sanitizer(file.text), path=f"C:\\Users\\stardust\\Downloads\\PlurallScraper-dev-branch\\second\\plurallSubjects\\{current_subject_name}\\{current_content_name}\\{current_subcontent_name}\\")
+                                else:
+                                    # APPEN AND CLICK
+                                    true_file_names.append(file.get_attribute('download'))
+                                    # CLICK THE LINK
+                                    file.click()
+                            #print(file.find_element(By.CSS_SELECTOR, 'class="text_link ng-binding"'))
+                        
+                        # wait for the download to complete before moving the files
+                        #time.sleep(3)
+                        self.esperar_download()
+                        for file_i in range(len(subcontent_files)):
+                            filename, file_extension = os.path.splitext(str(true_file_names[file_i]))
+                            #actual_file = os.path.join(self.folder_path, f"/downloads/{true_file_names[file_i]}")
+                            #actual_dst = os.path.join(self.folder_path, f"/plurallSubjects/{current_subject_name}/{current_content_name}/{current_subcontent_name}/{self.name_sanitizer(subcontent_files[file_i].text)}{file_extension}")
+                            actual_file = f"C:\\Users\\stardust\\Downloads\\PlurallScraper-dev-branch\\second\\downloads\\{filename}{file_extension}"
+                            actual_dst = f"C:\\Users\\stardust\\Downloads\\PlurallScraper-dev-branch\\second\\plurallSubjects\\{current_subject_name}\\{current_content_name}\\{current_subcontent_name}\\{self.name_sanitizer(subcontent_files[file_i].text)}{file_extension}"
+                            print(f"FILE --> {actual_file}")
+                            print(f"DST --> {actual_dst}")
+
+                            if not os.path.exists(actual_dst):
+                                shutil.copy(actual_file, actual_dst)
+                        
+                        self.zoom_default()
+
+                        
+                        # Leave the iframe :D
+                        self.DRIVER.switch_to.default_content()
+
+                        # MAKE SURE TO CLOSE ANY TABS IT OPENED TO DOWNLOAD STUFF
+                        try:
+                            time.sleep(1)
+                            for i in range(5):
+                                self.DRIVER.switch_to.window(self.DRIVER.window_handles[1])
+                                self.DRIVER.close()
+                            self.DRIVER.switch_to.window(self.DRIVER.window_handles[0])
+                        except Exception as E:
+                            print(E)
+
+                    except Exception as E:
+                        self.DRIVER.switch_to.default_content()
+                        self.zoom_default()
+                        print(E)
 
 
                     go_back_button = self.DRIVER.find_element(By.CSS_SELECTOR, '.md-icon-button')

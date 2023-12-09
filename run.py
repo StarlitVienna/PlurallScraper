@@ -14,8 +14,8 @@ def main_func():
     mainScraper.setup()
     mainScraper.login()
     mainScraper.abrir_maestro()
-    mainScraper.criar_pastas_materias()
-    mainScraper.criar_pastas_conteudos_materias(max_number_of_pages=3)
+    mainScraper.criar_pastas_materias(cut_subjects=10)
+    mainScraper.criar_pastas_conteudos_materias(max_number_of_pages=6)
     #mainScraper.salvar_conteudo(max_number_of_pages=3)
 
     mainScraper.close()
